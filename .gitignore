@@ -3,3 +3,4 @@
 *.xcodeproj
 dist/
 node_modules/
+.claude/
