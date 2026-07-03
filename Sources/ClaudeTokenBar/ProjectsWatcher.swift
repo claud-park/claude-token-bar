@@ -1,9 +1,16 @@
 import Foundation
+import CoreServices
 
+/// Watches ~/.claude/projects for transcript changes. Primary trigger is an
+/// FSEventStream (kernel-pushed, ~3s coalescing latency, zero cost when idle)
+/// backed by a slow safety poll in case events are dropped. If FSEvents fails
+/// to start, falls back to the original 15s poll. Either path funnels through
+/// the signature gate so `onChange` only fires on real jsonl changes.
 final class ProjectsWatcher: @unchecked Sendable {
     private let projectsURL: URL
     private let onChange: @Sendable () -> Void
     private let queue = DispatchQueue(label: "com.claudetokenbar.projects-watcher")
+    private var stream: FSEventStreamRef?
     private var timer: DispatchSourceTimer?
     private var lastSignature: ProjectSignature?
 
@@ -14,23 +21,77 @@ final class ProjectsWatcher: @unchecked Sendable {
 
     func start() {
         queue.async {
-            guard self.timer == nil else { return }
+            guard self.timer == nil, self.stream == nil else { return }
             self.lastSignature = Self.computeSignature(at: self.projectsURL)
-            let timer = DispatchSource.makeTimerSource(queue: self.queue)
-            timer.schedule(deadline: .now() + 15, repeating: 15)
-            timer.setEventHandler { [weak self] in
-                self?.poll()
-            }
-            self.timer = timer
-            timer.resume()
+            let fsEventsLive = self.startFSEventStream()
+            // 60s safety net when FSEvents is live; 15s primary poll otherwise.
+            self.startTimer(interval: fsEventsLive ? 60 : 15)
         }
     }
 
     func stop() {
         queue.async {
-            self.timer?.cancel()
-            self.timer = nil
+            self.teardownLocked()
         }
+    }
+
+    deinit {
+        // No external refs remain, so touching state directly is safe here.
+        teardownLocked()
+    }
+
+    private func teardownLocked() {
+        timer?.cancel()
+        timer = nil
+        if let stream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            self.stream = nil
+        }
+    }
+
+    private func startFSEventStream() -> Bool {
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            // Delivered on `queue` via FSEventStreamSetDispatchQueue below.
+            Unmanaged<ProjectsWatcher>.fromOpaque(info).takeUnretainedValue().poll()
+        }
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            callback,
+            &context,
+            [projectsURL.path] as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            3.0,
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagNone)
+        ) else { return false }
+
+        FSEventStreamSetDispatchQueue(stream, queue)
+        guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            return false
+        }
+        self.stream = stream
+        return true
+    }
+
+    private func startTimer(interval: TimeInterval) {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + interval, repeating: interval)
+        timer.setEventHandler { [weak self] in
+            self?.poll()
+        }
+        self.timer = timer
+        timer.resume()
     }
 
     private func poll() {

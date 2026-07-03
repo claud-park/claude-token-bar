@@ -2,6 +2,8 @@ import AppKit
 
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
+    private static let icon = "🐾"
+
     private let statusItem: NSStatusItem
     private var snapshot = UsageSnapshot.empty
     private var refreshAction: (() -> Void)?
@@ -10,7 +12,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     init(statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)) {
         self.statusItem = statusItem
         super.init()
-        statusItem.button?.title = "⚡ ..."
+        statusItem.button?.title = "\(Self.icon) ..."
         statusItem.menu = makeMenu()
         uiTickTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -37,11 +39,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func renderTitle() {
         let title: String
         if snapshot.updatedAt == .distantPast {
-            title = "⚡ ..."
+            title = "\(Self.icon) ..."
         } else if let block = snapshot.block, block.endTime > Date() {
-            title = "⚡ \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
+            title = "\(Self.icon) \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
         } else {
-            title = "⚡ idle"
+            title = "\(Self.icon) idle"
         }
         statusItem.button?.title = snapshot.errorMessage == nil ? title : "\(title) ⚠"
     }
