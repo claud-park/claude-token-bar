@@ -20,10 +20,26 @@ The local module cache and `--disable-sandbox` are only needed in restricted env
 ## Run
 
 ```sh
-.build/debug/ClaudeTokenBar
+swift build -c release
+cp .build/release/ClaudeTokenBar dist/ClaudeTokenBar.app/Contents/MacOS/
+codesign --force --sign - dist/ClaudeTokenBar.app
+open dist/ClaudeTokenBar.app
 ```
 
-The app runs as an accessory `NSStatusItem` without a Dock icon. It invokes `ccusage` from the user home directory, never from this package directory.
+The app runs as an accessory `NSStatusItem` without a Dock icon. It invokes `ccusage` from the user home directory, never from this package directory. To start it at login, add `dist/ClaudeTokenBar.app` in System Settings → General → Login Items.
+
+## Troubleshooting (macOS 26 Tahoe)
+
+On Tahoe, menu bar items are hosted out-of-process by Control Center, and two
+pitfalls apply:
+
+- The status button must have an `image` (template SF Symbol). Title-only
+  buttons can collapse to zero width in the remote hosting layer.
+- On some machines Control Center fails to adopt items created after it
+  started. If the paw icon is missing while the app is running, run
+  `killall ControlCenter` — the menu bar rebuilds in a second and the item
+  appears. Stale `"NSStatusItem Visible Item-N" = 0` keys in
+  `com.apple.controlcenter` can also silently hide unnamed third-party items.
 
 ## Behavior
 

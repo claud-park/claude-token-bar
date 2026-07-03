@@ -12,7 +12,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     init(statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)) {
         self.statusItem = statusItem
         super.init()
-        statusItem.button?.title = "\(Self.icon) ..."
+        // Without an autosave name the item persists visibility under the shared
+        // "Item-0" key in com.apple.controlcenter — a stale hidden flag there
+        // (observed on this machine) silently hides every unnamed status item.
+        statusItem.autosaveName = "ClaudeTokenBar"
+        statusItem.isVisible = true
+        // Tahoe hosts status items out-of-process in Control Center; title-only
+        // buttons fail to propagate content/width and collapse to zero. An
+        // image-based button (template SF Symbol) is required to render.
+        let paw = NSImage(systemSymbolName: "pawprint.fill", accessibilityDescription: "Claude token usage")
+        paw?.isTemplate = true
+        statusItem.button?.image = paw
+        statusItem.button?.imagePosition = .imageLeading
+        statusItem.button?.title = " ..."
         statusItem.menu = makeMenu()
         uiTickTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -30,6 +42,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.snapshot = snapshot
         renderTitle()
         statusItem.menu = makeMenu()
+        if ProcessInfo.processInfo.environment["CLAUDETOKENBAR_DEBUG"] != nil {
+            let frame = statusItem.button?.window?.frame ?? .zero
+            FileHandle.standardError.write(Data("DEBUG isVisible=\(statusItem.isVisible) title='\(statusItem.button?.title ?? "nil")' windowFrame=\(frame)\n".utf8))
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -39,11 +55,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func renderTitle() {
         let title: String
         if snapshot.updatedAt == .distantPast {
-            title = "\(Self.icon) ..."
+            title = " ..."
         } else if let block = snapshot.block, block.endTime > Date() {
-            title = "\(Self.icon) \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
+            title = " \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
         } else {
-            title = "\(Self.icon) idle"
+            title = " idle"
         }
         statusItem.button?.title = snapshot.errorMessage == nil ? title : "\(title) ⚠"
     }
