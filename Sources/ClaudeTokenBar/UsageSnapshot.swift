@@ -96,10 +96,11 @@ struct BlockSummary: Codable, Sendable, Equatable {
 struct UsageSnapshot: Codable, Sendable, Equatable {
     var today: TodaySummary?
     var block: BlockSummary?
+    var limits: LimitsSnapshot?
     var updatedAt: Date
     var errorMessage: String?
 
-    static let empty = UsageSnapshot(today: nil, block: nil, updatedAt: .distantPast, errorMessage: nil)
+    static let empty = UsageSnapshot(today: nil, block: nil, limits: nil, updatedAt: .distantPast, errorMessage: nil)
 }
 
 // MARK: - Mapping from raw ccusage responses to the normalized model
@@ -171,6 +172,7 @@ enum SnapshotMapper {
     static func build(
         daily: DailyResponse?,
         blocks: BlocksResponse?,
+        limits: LimitsSnapshot?,
         previous: UsageSnapshot,
         updatedAt: Date,
         errorMessage: String?
@@ -189,6 +191,12 @@ enum SnapshotMapper {
             block = previous.block
         }
 
-        return UsageSnapshot(today: today, block: block, updatedAt: updatedAt, errorMessage: errorMessage)
+        return UsageSnapshot(
+            today: today,
+            block: block,
+            limits: limits ?? previous.limits,
+            updatedAt: updatedAt,
+            errorMessage: errorMessage
+        )
     }
 }

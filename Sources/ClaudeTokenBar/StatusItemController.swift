@@ -57,7 +57,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if snapshot.updatedAt == .distantPast {
             title = " ..."
         } else if let block = snapshot.block, block.endTime > Date() {
-            title = " \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
+            if let limits = currentLimits() {
+                title = " \(Formatters.tokens(block.totalTokens)) · \(Formatters.percent(limits.sessionPercent))"
+            } else {
+                title = " \(Formatters.tokens(block.totalTokens)) · \(Formatters.countdown(from: Date(), to: block.endTime))"
+            }
+        } else if let limits = currentLimits() {
+            title = " \(Formatters.percent(limits.sessionPercent))"
         } else {
             title = " idle"
         }
@@ -81,6 +87,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+
+        if let limits = currentLimits() {
+            var session = "Session limit \(Formatters.percent(limits.sessionPercent)) used"
+            if let resets = limits.sessionResetsAt {
+                session += " · resets \(Formatters.resetTime(resets))"
+            }
+            menu.addItem(disabledItem(session))
+            if let weekly = limits.weeklyPercent {
+                var week = "Weekly limit \(Formatters.percent(weekly)) used"
+                if let resets = limits.weeklyResetsAt {
+                    week += " · resets \(Formatters.resetDay(resets))"
+                }
+                menu.addItem(disabledItem(week))
+            }
+            menu.addItem(.separator())
+        }
 
         if let block = snapshot.block, block.endTime > Date() {
             menu.addItem(disabledItem("Current block (resets \(Formatters.resetTime(block.endTime)), \(Formatters.countdown(from: Date(), to: block.endTime)) left)"))
@@ -113,6 +135,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(actionItem("Quit", action: #selector(quit)))
 
         return menu
+    }
+
+    /// Limits data is only trustworthy until its own reset time — after that,
+    /// carry-over from a failed refresh would show a stale percentage, so fall
+    /// back to the countdown display instead.
+    private func currentLimits() -> LimitsSnapshot? {
+        guard let limits = snapshot.limits else { return nil }
+        if let resets = limits.sessionResetsAt, resets <= Date() { return nil }
+        return limits
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {

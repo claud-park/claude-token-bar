@@ -40,8 +40,10 @@ To start it at login: System Settings → General → Login Items → add `Claud
 
 ## What it shows
 
-- **Menu bar**: `🐾 55.3M · 2h41m` — active 5-hour block tokens and time until reset (`idle` when no active block, `⚠` on errors).
-- **Dropdown**: today's tokens/cost with input/output/cache breakdown, current block detail (burn rate, projected cost at reset), per-model costs, last-updated time, Refresh Now, and a shortcut to the transcripts folder.
+- **Menu bar**: `🐾 55.3M · 42%` — active 5-hour block tokens and the official session-limit utilization (the same percentage Claude Code's `/usage` shows). Falls back to the block-reset countdown (`🐾 55.3M · 2h41m`) when the limits API is unavailable; `idle` when no active block; `⚠` on errors.
+- **Dropdown**: session and weekly limit percentages with reset times, today's tokens/cost with input/output/cache breakdown, current block detail (burn rate, projected cost at reset), per-model costs, last-updated time, Refresh Now, and a shortcut to the transcripts folder.
+
+Limit percentages come from Anthropic's OAuth usage endpoint, authenticated with your local Claude Code credential (read from the login keychain via `/usr/bin/security`). The token never leaves your machine, is never written to disk by this app, and is never logged.
 
 ## Behavior
 

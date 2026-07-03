@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 final class RefreshCoordinator {
     private let provider: CCUsageProvider
+    private let limitsProvider = LimitsProvider()
     private let store: StateStore
     private let projectsURL: URL
     private let onSnapshot: @MainActor (UsageSnapshot) -> Void
@@ -87,10 +88,12 @@ final class RefreshCoordinator {
         }
 
         let todayString = Self.yyyymmdd(Date())
+        async let limitsFetch = limitsProvider.fetch()
         let fetchResult = await fetchSnapshotPieces(sinceYYYYMMDD: todayString)
         let newSnapshot = SnapshotMapper.build(
             daily: fetchResult.daily,
             blocks: fetchResult.blocks,
+            limits: await limitsFetch,
             previous: snapshot,
             updatedAt: Date(),
             errorMessage: fetchResult.errorMessage

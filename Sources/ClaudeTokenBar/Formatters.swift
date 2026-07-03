@@ -35,6 +35,16 @@ enum Formatters {
         return "\(minutes)m"
     }
 
+    /// Limit utilization: `96%` (rounded to whole percent, clamped at 0).
+    static func percent(_ value: Double) -> String {
+        "\(max(0, Int(value.rounded())))%"
+    }
+
+    /// Local weekday + time for multi-day resets, e.g. `Thu 16:00`.
+    static func resetDay(_ date: Date) -> String {
+        makeTimeFormatter("E HH:mm").string(from: date)
+    }
+
     /// Local wall-clock time with seconds, e.g. `11:42:03`.
     static func time(_ date: Date) -> String {
         makeTimeFormatter("HH:mm:ss").string(from: date)
