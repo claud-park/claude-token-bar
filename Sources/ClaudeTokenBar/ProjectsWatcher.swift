@@ -3,9 +3,9 @@ import CoreServices
 
 /// Watches ~/.claude/projects for transcript changes. Primary trigger is an
 /// FSEventStream (kernel-pushed, ~3s coalescing latency, zero cost when idle)
-/// backed by a slow safety poll in case events are dropped. If FSEvents fails
-/// to start, falls back to the original 15s poll. Either path funnels through
-/// the signature gate so `onChange` only fires on real jsonl changes.
+/// backed by a slow (300s) safety poll in case events are dropped. If FSEvents
+/// fails to start, falls back to the original 15s poll. Either path funnels
+/// through the signature gate so `onChange` only fires on real jsonl changes.
 final class ProjectsWatcher: @unchecked Sendable {
     private let projectsURL: URL
     private let onChange: @Sendable () -> Void
@@ -24,8 +24,9 @@ final class ProjectsWatcher: @unchecked Sendable {
             guard self.timer == nil, self.stream == nil else { return }
             self.lastSignature = Self.computeSignature(at: self.projectsURL)
             let fsEventsLive = self.startFSEventStream()
-            // 60s safety net when FSEvents is live; 15s primary poll otherwise.
-            self.startTimer(interval: fsEventsLive ? 60 : 15)
+            // 300s safety net when FSEvents is live (it's the primary trigger
+            // and rarely misses); 15s primary poll otherwise.
+            self.startTimer(interval: fsEventsLive ? 300 : 15)
         }
     }
 
@@ -86,7 +87,10 @@ final class ProjectsWatcher: @unchecked Sendable {
 
     private func startTimer(interval: TimeInterval) {
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + interval, repeating: interval)
+        // Generous leeway lets the OS coalesce this wakeup with other
+        // scheduled system activity instead of waking the CPU on the dot.
+        let leeway = DispatchTimeInterval.seconds(Int(interval / 3))
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: leeway)
         timer.setEventHandler { [weak self] in
             self?.poll()
         }

@@ -38,11 +38,18 @@ final class RefreshCoordinator {
             refreshNow(force: true)
         }
 
-        safetyTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        // Last-resort net in case ProjectsWatcher's own FSEvents+poll path
+        // somehow misses a change entirely. ProjectsWatcher already re-scans
+        // the projects tree on its own cadence, so this only needs to catch
+        // total watcher failure, not routine drift - keep it rare and let the
+        // OS coalesce the wakeup with other timers via tolerance.
+        let timer = Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshNow(force: false)
             }
         }
+        timer.tolerance = 300
+        safetyTimer = timer
     }
 
     func stop() {

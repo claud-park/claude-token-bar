@@ -26,12 +26,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem.button?.imagePosition = .imageLeading
         statusItem.button?.title = " ..."
         statusItem.menu = makeMenu()
-        uiTickTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.renderTitle()
                 self?.statusItem.menu = self?.makeMenu()
             }
         }
+        timer.tolerance = 20
+        uiTickTimer = timer
     }
 
     func setRefreshAction(_ action: @escaping () -> Void) {
