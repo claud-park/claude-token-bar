@@ -81,16 +81,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        if let today = snapshot.today {
-            menu.addItem(disabledItem("Today - \(Formatters.cost(today.totalCost)) · \(Formatters.tokens(today.totalTokens)) tokens"))
-            menu.addItem(disabledItem("  in \(Formatters.tokens(today.inputTokens)) · out \(Formatters.tokens(today.outputTokens)) · cache-w \(Formatters.tokens(today.cacheCreationTokens)) · cache-r \(Formatters.tokens(today.cacheReadTokens))"))
-        } else {
-            menu.addItem(disabledItem("No usage today"))
-        }
-
-        menu.addItem(.separator())
-
         if let limits = currentLimits() {
+            menu.addItem(sectionHeaderItem("🌐 Overall (Web + Desktop + Code)"))
             var session = "Session limit \(Formatters.percent(limits.sessionPercent)) used"
             if let resets = limits.sessionResetsAt {
                 session += " · resets \(Formatters.resetTime(resets))"
@@ -105,6 +97,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             }
             menu.addItem(.separator())
         }
+
+        menu.addItem(sectionHeaderItem("💻 Claude Code (this app)"))
+
+        if let today = snapshot.today {
+            menu.addItem(disabledItem("Today - \(Formatters.cost(today.totalCost)) · \(Formatters.tokens(today.totalTokens)) tokens"))
+            menu.addItem(disabledItem("  in \(Formatters.tokens(today.inputTokens)) · out \(Formatters.tokens(today.outputTokens)) · cache-w \(Formatters.tokens(today.cacheCreationTokens)) · cache-r \(Formatters.tokens(today.cacheReadTokens))"))
+        } else {
+            menu.addItem(disabledItem("No usage today"))
+        }
+
+        menu.addItem(.separator())
 
         if let block = snapshot.block, block.endTime > Date() {
             menu.addItem(disabledItem("Current block (resets \(Formatters.resetTime(block.endTime)), \(Formatters.countdown(from: Date(), to: block.endTime)) left)"))
@@ -151,6 +154,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func disabledItem(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        return item
+    }
+
+    private func sectionHeaderItem(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        item.attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
         return item
     }
 
